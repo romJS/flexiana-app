@@ -31,7 +31,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
 
 function TablePaginationActions(props: Types.TablePaginationActionsProps) {
   const theme = useTheme();
-  const { count, page, rowsPerPage, onPageChange } = props;
+  const { count, page, rowsPerPage, prefetchLoading, onPageChange } = props;
 
   const handleFirstPageButtonClick = (
     event: React.MouseEvent<HTMLButtonElement>
@@ -68,7 +68,7 @@ function TablePaginationActions(props: Types.TablePaginationActionsProps) {
       </IconButton>
       <IconButton
         onClick={handleBackButtonClick}
-        disabled={page === 0}
+        disabled={prefetchLoading || page === 0}
         aria-label="previous page"
       >
         {theme.direction === "rtl" ? (
@@ -79,7 +79,7 @@ function TablePaginationActions(props: Types.TablePaginationActionsProps) {
       </IconButton>
       <IconButton
         onClick={handleNextButtonClick}
-        disabled={page >= Math.ceil(count / rowsPerPage) - 1}
+        disabled={prefetchLoading || page >= Math.ceil(count / rowsPerPage) - 1}
         aria-label="next page"
       >
         {theme.direction === "rtl" ? (
@@ -101,17 +101,29 @@ function TablePaginationActions(props: Types.TablePaginationActionsProps) {
 
 const CustomTable = ({
   rows,
+  prefetchedNext,
+  prefetchedPrev,
   totalCount,
   page,
   rowsPerPage,
   loading,
+  prefetchLoading,
   onChangePage,
   onRowsPerPage,
+  setRows,
 }: Types.TableProps) => {
   const handleChangePage = (
     event: React.MouseEvent<HTMLButtonElement> | null,
     newPage: number
   ) => {
+    if (newPage === page + 1 && prefetchedNext.length > 0) {
+      onChangePage(newPage);
+      setRows(prefetchedNext);
+    }
+    if (newPage === page - 1 && prefetchedPrev.length > 0) {
+      onChangePage(newPage);
+      setRows(prefetchedPrev);
+    }
     onChangePage(newPage);
   };
 
@@ -177,7 +189,9 @@ const CustomTable = ({
               }}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
-              ActionsComponent={TablePaginationActions}
+              ActionsComponent={(props) =>
+                TablePaginationActions({ ...props, prefetchLoading })
+              }
             />
           </TableRow>
         </TableFooter>

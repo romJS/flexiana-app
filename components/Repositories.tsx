@@ -7,18 +7,24 @@ import { useDebounce } from "@/hooks";
 import CircularProgress from "@mui/material/CircularProgress";
 import { Types } from "@/types";
 import { TextField } from "@mui/material";
-import ControlledSwitch from "./ControlledSwitch";
 
 export const Repositories = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [repositories, setRepositories] = useState<Types.RepositoriesData[]>(
     []
   );
+  const [prefetchedNext, setPrefetchedNext] = useState<
+    Types.RepositoriesData[]
+  >([]);
+  const [prefetchedPrev, setPrefetchedPrev] = useState<
+    Types.RepositoriesData[]
+  >([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [page, setPage] = useState(1);
+  const [prefetchLoading, setPrefetchLoading] = useState<boolean>(false);
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [totalCount, setTotalCount] = useState<number>(0);
-  const [checked, setChecked] = useState<boolean>(false);
+
+  const TOTAL_COUNT = 1000;
 
   const { data: session } = useSession();
 
@@ -34,7 +40,10 @@ export const Repositories = () => {
         );
         if (data) {
           setRepositories(data.repositoriesData);
-          setTotalCount(data.totalCount);
+          const prefetchedNext = await prefetchRepositories(1);
+          if (prefetchedNext) {
+            setPrefetchedNext(prefetchedNext);
+          }
         }
         setLoading(false);
       } catch (error: any) {
@@ -46,18 +55,60 @@ export const Repositories = () => {
     }
   };
 
+  const prefetchRepositories = async (numOfPrefetchedPage: number) => {
+    if (session && searchQuery) {
+      try {
+        const data = await getRepositoriesData(
+          session.accessToken,
+          searchQuery,
+          page + numOfPrefetchedPage,
+          rowsPerPage
+        );
+        if (data) {
+          return data.repositoriesData;
+        }
+      } catch (error: any) {
+        alert(error.message);
+      }
+    }
+  };
+
   useEffect(() => {
-    fetchRepositories();
+    const prefetching = async () => {
+      setPrefetchLoading(true);
+
+      if (page === 0) {
+        await fetchRepositories();
+      }
+
+      if (page > 0 && page < TOTAL_COUNT / rowsPerPage - 1) {
+        const prefetchedNext = await prefetchRepositories(1);
+        if (prefetchedNext) {
+          setPrefetchedNext(prefetchedNext);
+        }
+      }
+      if (page === TOTAL_COUNT / rowsPerPage - 1) {
+        const fetchData = await prefetchRepositories(0);
+        if (fetchData) {
+          setRepositories(fetchData);
+        }
+      }
+      if (page > 0) {
+        const prefetchedPrev = await prefetchRepositories(-1);
+        if (prefetchedPrev) {
+          setPrefetchedPrev(prefetchedPrev);
+        }
+      }
+      setPrefetchLoading(false);
+    };
+
+    prefetching();
   }, [page, rowsPerPage]);
 
   const debouncedFetchRepositories = useDebounce(fetchRepositories, 1000);
 
   return (
     <div className="flex flex-col m-2 items-center">
-      <ControlledSwitch
-        onChecked={setChecked}
-        label="Limited / original count"
-      />
       <div className="m-4">
         <TextField
           id="outlined-basic"
@@ -75,12 +126,16 @@ export const Repositories = () => {
       {repositories.length > 0 && (
         <CustomTable
           rows={repositories}
-          totalCount={checked ? totalCount : 1000}
+          prefetchedNext={prefetchedNext}
+          prefetchedPrev={prefetchedPrev}
+          totalCount={TOTAL_COUNT}
           page={page}
           loading={loading}
+          prefetchLoading={prefetchLoading}
           rowsPerPage={rowsPerPage}
           onChangePage={setPage}
           onRowsPerPage={setRowsPerPage}
+          setRows={setRepositories}
         />
       )}
     </div>

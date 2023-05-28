@@ -16,7 +16,9 @@ async function getRepositories(
 ): Promise<Types.SearchResults | undefined> {
   try {
     const response = await get(
-      `https://api.github.com/search/repositories?q=${searchQuery}&per_page=${rowsPerPage}&page=${page}`,
+      `https://api.github.com/search/repositories?q=${searchQuery}&per_page=${rowsPerPage}&page=${
+        page + 1
+      }`,
       accessToken
     );
 
